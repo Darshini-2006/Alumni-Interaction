@@ -1,194 +1,286 @@
-
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Camera, Upload, User } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-
-const profileSchema = z.object({
-  firstName: z.string().min(2, { message: "First name must be at least 2 characters" }),
-  lastName: z.string().min(2, { message: "Last name must be at least 2 characters" }),
-  email: z.string().email({ message: "Please enter a valid email address" }),
-});
-
-type ProfileFormValues = z.infer<typeof profileSchema>;
+import { Camera, Upload, User, Mail, Briefcase, GraduationCap, Building2, ScrollText } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { app } from '../../firebase';
+import { getFirestore, collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 const Profile = () => {
   const { user, updateUser } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [profileData, setProfileData] = useState<any>(null);
   const [profilePhoto, setProfilePhoto] = useState<string | undefined>(user?.profilePhoto);
+  const [authUser, setAuthUser] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const db = getFirestore(app);
+  const auth = getAuth(app);
 
-  const form = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      firstName: user?.firstName || "",
-      lastName: user?.lastName || "",
-      email: user?.email || "",
-    },
-  });
+  // Listen for auth state changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setAuthUser(user);
+      } else {
+        navigate('/login');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [auth, navigate]);
+
+  // Fetch user data when auth user is available
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!authUser?.email) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        console.log("Fetching data for email:", authUser.email); // Debug log
+        const alumniRef = collection(db, "alumni");
+        const q = query(alumniRef, where("email", "==", authUser.email));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+          const userData = querySnapshot.docs[0].data();
+          console.log("Found user data:", userData); // Debug log
+          setProfileData(userData);
+          if (userData.profilePhoto) {
+            setProfilePhoto(userData.profilePhoto);
+          }
+          
+          // Update auth context with user data
+          updateUser({
+            id: authUser.uid,
+            email: userData.email,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            role: 'alumni',
+            profilePhoto: userData.profilePhoto
+          });
+        } else {
+          console.log("No matching documents found"); // Debug log
+          toast.error("Profile data not found. Please complete your registration.");
+          navigate('/register');
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+        toast.error("Failed to load profile data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (authUser) {
+      fetchUserData();
+    }
+  }, [authUser, db, navigate, updateUser]);
 
   const handleProfilePhotoClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setProfilePhoto(result);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          setProfilePhoto(result);
+        };
+        reader.readAsDataURL(file);
+      } catch (error) {
+        console.error("Error uploading profile photo:", error);
+        toast.error("Failed to update profile photo");
+      }
     }
   };
 
-  const onSubmit = async (values: ProfileFormValues) => {
-    setIsLoading(true);
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      updateUser({
-        firstName: values.firstName,
-        lastName: values.lastName,
-        email: values.email,
-        profilePhoto: profilePhoto
-      });
-      
-      toast.success("Profile updated successfully");
-    } catch (error) {
-      toast.error("Failed to update profile");
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  if (isLoading) {
+    return (
+      <div className="min-h-screen pt-20 bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-lg text-muted-foreground">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authUser) {
+    return (
+      <div className="min-h-screen pt-20 bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-muted-foreground">Please log in to view your profile</p>
+          <Button className="mt-4" onClick={() => navigate('/login')}>
+            Go to Login
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profileData) {
+    return (
+      <div className="min-h-screen pt-20 bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <p className="text-lg text-muted-foreground">Profile not found</p>
+          <p className="text-sm text-muted-foreground">Please complete your registration to continue</p>
+          <div className="space-x-4">
+            <Button variant="outline" onClick={() => navigate('/forums')}>
+              Go Back
+            </Button>
+            <Button onClick={() => navigate('/register')}>
+              Complete Registration
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pt-20 bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-12">
-        <div className="max-w-2xl mx-auto">
-          <h1 className="text-3xl font-bold mb-8">Your Profile</h1>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Personal Information</CardTitle>
-              <CardDescription>
-                Update your personal information and profile photo
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* Profile Photo */}
-              <div className="flex justify-center mb-8">
-                <div className="relative">
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    accept="image/*" 
-                    onChange={handleFileChange}
-                    disabled={isLoading}
-                  />
-                  <Avatar 
-                    className="h-24 w-24 border-2 border-primary cursor-pointer"
-                    onClick={handleProfilePhotoClick}
-                  >
-                    {profilePhoto ? (
-                      <AvatarImage src={profilePhoto} alt="Profile photo" />
-                    ) : (
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        <User className="h-8 w-8" />
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                  <div 
-                    className="absolute bottom-0 right-0 bg-primary text-white p-1 rounded-full cursor-pointer"
-                    onClick={handleProfilePhotoClick}
-                  >
-                    <Upload className="h-4 w-4" />
-                  </div>
-                  <p className="text-sm text-center mt-2 text-muted-foreground">
-                    Click to upload or update profile photo
-                  </p>
+        <div className="max-w-4xl mx-auto">
+          {/* Profile Header */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 mb-8">
+            <div className="flex flex-col md:flex-row items-center gap-8">
+              <div className="relative">
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  className="hidden" 
+                  accept="image/*" 
+                  onChange={handleFileChange}
+                />
+                <Avatar 
+                  className="h-32 w-32 border-4 border-primary/20 cursor-pointer hover:border-primary/40 transition-colors"
+                  onClick={handleProfilePhotoClick}
+                >
+                  {profilePhoto ? (
+                    <AvatarImage src={profilePhoto} alt="Profile photo" />
+                  ) : (
+                    <AvatarFallback className="bg-primary/10">
+                      <User className="h-12 w-12 text-primary" />
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <div 
+                  className="absolute bottom-0 right-0 bg-primary text-white p-2 rounded-full cursor-pointer hover:bg-primary/90 transition-colors"
+                  onClick={handleProfilePhotoClick}
+                >
+                  <Camera className="h-5 w-5" />
                 </div>
               </div>
               
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="firstName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>First Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={isLoading} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="lastName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Last Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={isLoading} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+              <div className="text-center md:text-left flex-1">
+                <h1 className="text-3xl font-bold">
+                  {profileData.firstName} {profileData.lastName}
+                </h1>
+                <p className="text-lg text-muted-foreground mt-2">
+                  {profileData.jobTitle} {profileData.company && `at ${profileData.company}`}
+                </p>
+                <div className="flex flex-wrap gap-2 mt-4 justify-center md:justify-start">
+                  {profileData.forums?.map((forum: string) => (
+                    <span 
+                      key={forum}
+                      className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm"
+                    >
+                      {forum}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Profile Details */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Personal Information */}
+            <Card>
+              <CardContent className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Personal Information</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Email</p>
+                      <p className="font-medium">{profileData.email}</p>
+                    </div>
                   </div>
-                  
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email Address</FormLabel>
-                        <FormControl>
-                          <Input {...field} disabled={isLoading} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <div className="pt-4 flex justify-end space-x-4">
-                    <Button variant="outline" type="button" onClick={() => navigate('/forums')}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={isLoading}>
-                      {isLoading ? "Saving..." : "Save Changes"}
-                    </Button>
+                  <Separator />
+                  <div className="flex items-center gap-3">
+                    <GraduationCap className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Education</p>
+                      <p className="font-medium">{profileData.degree}</p>
+                      <p className="text-sm text-muted-foreground">Class of {profileData.graduationYear}</p>
+                    </div>
                   </div>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Professional Information */}
+            <Card>
+              <CardContent className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Professional Information</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Briefcase className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Job Title</p>
+                      <p className="font-medium">{profileData.jobTitle || 'Not specified'}</p>
+                    </div>
+                  </div>
+                  <Separator />
+                  <div className="flex items-center gap-3">
+                    <Building2 className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Company</p>
+                      <p className="font-medium">{profileData.company || 'Not specified'}</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Bio */}
+            <Card className="md:col-span-2">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-3">
+                  <ScrollText className="h-5 w-5 text-muted-foreground mt-1" />
+                  <div>
+                    <h2 className="text-xl font-semibold mb-2">Bio</h2>
+                    <p className="text-muted-foreground">
+                      {profileData.bio || 'No bio provided'}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Actions */}
+          <div className="mt-8 flex justify-end gap-4">
+            <Button variant="outline" onClick={() => navigate('/forums')}>
+              Back to Forums
+            </Button>
+            <Button onClick={() => navigate('/profile/edit')}>
+              Edit Profile
+            </Button>
+          </div>
         </div>
       </div>
     </div>

@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useState, createContext, useContext } from "react";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";  // ✅ Added Signup Page
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 import Forums from "./pages/Forums";
@@ -85,7 +85,7 @@ const App = () => {
       setUser({...user, ...data});
     }
   };
-  
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={{ isLoggedIn, user, login, logout, updateUser }}>
@@ -96,6 +96,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} /> {/* ✅ Added Signup Route */}
               <Route path="/forums" element={<Forums />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/alumni" element={<Alumni />} />
@@ -118,9 +119,7 @@ const App = () => {
               <Route 
                 path="/profile" 
                 element={
-                  <ProtectedRoute>
                     <Profile />
-                  </ProtectedRoute>
                 } 
               />
               <Route 

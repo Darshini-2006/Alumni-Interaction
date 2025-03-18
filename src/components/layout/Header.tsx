@@ -1,21 +1,30 @@
-
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Menu, X, User, Users, Briefcase, Calendar, 
-  MessageSquare, LogIn, LogOut, ChevronDown 
+  MessageSquare, LogIn, LogOut 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Logo from '@/components/ui/Logo';
-import { useAuth } from '@/App';
+import { auth } from '../../../firebase.js'; // Adjust the path to your firebase config file
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const location = useLocation();
-  const { isLoggedIn, logout } = useAuth();
   const navigate = useNavigate();
 
+  // Listen for authentication state changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsLoggedIn(!!user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Handle window scroll for header styling
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 10);
@@ -33,9 +42,13 @@ const Header = () => {
     setIsMobileMenuOpen(false);
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const navItems = [
@@ -45,6 +58,9 @@ const Header = () => {
     { name: 'Jobs', path: '/jobs', icon: Briefcase },
     { name: 'Events', path: '/events', icon: Calendar },
   ];
+
+  // Hide "Home" if the user is logged in
+  const filteredNavItems = isLoggedIn ? navItems.filter(item => item.name !== 'Home') : navItems;
 
   return (
     <header 
@@ -59,7 +75,7 @@ const Header = () => {
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-6">
-          {navItems.map((item) => (
+          {filteredNavItems.map((item) => (
             <Link 
               key={item.path}
               to={item.path}
@@ -77,10 +93,9 @@ const Header = () => {
         <div className="hidden md:flex items-center gap-4">
           {isLoggedIn ? (
             <>
-              <Link to="/register">
-                <Button size="sm" className="text-sm font-medium relative overflow-hidden group">
-                  <span className="relative z-10">Register</span>
-                  <span className="absolute inset-0 bg-gradient-to-r from-primary to-primary/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+              <Link to="/profile">
+                <Button variant="ghost" size="sm" className="text-sm font-medium">
+                  <User className="h-4 w-4" />
                 </Button>
               </Link>
               <Button variant="ghost" size="sm" className="text-sm font-medium" onClick={handleLogout}>
@@ -95,7 +110,7 @@ const Header = () => {
                   Log in
                 </Button>
               </Link>
-              <Link to="/login">
+              <Link to="/register">
                 <Button size="sm" className="text-sm font-medium relative overflow-hidden group">
                   <span className="relative z-10">Register</span>
                   <span className="absolute inset-0 bg-gradient-to-r from-primary to-primary/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
@@ -125,7 +140,7 @@ const Header = () => {
           } transition-transform duration-300 ease-in-out z-0`}
         >
           <div className="flex flex-col h-full pt-20 p-6 space-y-6">
-            {navItems.map((item) => {
+            {filteredNavItems.map((item) => {
               const Icon = item.icon || User;
               return (
                 <Link
@@ -148,10 +163,10 @@ const Header = () => {
               <div className="grid grid-cols-2 gap-3">
                 {isLoggedIn ? (
                   <>
-                    <Link to="/register" onClick={closeMobileMenu}>
+                    <Link to="/profile" onClick={closeMobileMenu}>
                       <Button variant="outline" className="w-full">
                         <User className="h-4 w-4 mr-2" />
-                        Register
+                        Profile
                       </Button>
                     </Link>
                     <Button className="w-full" onClick={() => { handleLogout(); closeMobileMenu(); }}>
@@ -167,7 +182,7 @@ const Header = () => {
                         Log In
                       </Button>
                     </Link>
-                    <Link to="/login" onClick={closeMobileMenu}>
+                    <Link to="/register" onClick={closeMobileMenu}>
                       <Button className="w-full">
                         <User className="h-4 w-4 mr-2" />
                         Register

@@ -1,21 +1,15 @@
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { 
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { db } from '../../../firebase'; // Import Firestore database
+import { collection, addDoc } from 'firebase/firestore'; // Firestore functions
 
 const studentSchema = z.object({
   firstName: z.string().min(2, { message: "First name must be at least 2 characters" }),
@@ -48,9 +42,17 @@ const StudentForm = () => {
     setIsLoading(true);
     try {
       console.log("Student registration form values:", values);
-      // Simulating registration process
-      await new Promise((resolve) => setTimeout(resolve, 1000));
       
+      // Store the student data in Firestore
+      await addDoc(collection(db, "students"), {
+        firstName: values.firstName,
+        lastName: values.lastName,
+        email: values.email,
+        studentId: values.studentId,
+        major: values.major,
+        yearOfStudy: values.yearOfStudy,
+      });
+
       toast.success("Registration successful! Welcome to our platform.");
       navigate('/');
     } catch (error) {
