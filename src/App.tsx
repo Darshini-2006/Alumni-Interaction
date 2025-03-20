@@ -103,9 +103,7 @@ const App = () => {
               <Route 
                 path="/post-job" 
                 element={
-                  <ProtectedRoute>
                     <PostJob />
-                  </ProtectedRoute>
                 } 
               />
               <Route 

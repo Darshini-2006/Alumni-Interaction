@@ -1,379 +1,199 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { toast } from "sonner";
+import { collection, addDoc } from "firebase/firestore";
+import { db } from "../../firebase"; // Adjust the path based on your project structure
 
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { PenLine, Save, ArrowLeft } from 'lucide-react';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { toast } from 'sonner';
-import Header from '@/components/layout/Header';
-import Footer from '@/components/layout/Footer';
-
-// Form schema
-const formSchema = z.object({
-  title: z.string().min(5, { message: 'Job title must be at least 5 characters' }),
-  company: z.string().min(2, { message: 'Company name is required' }),
-  location: z.string().min(3, { message: 'Location is required' }),
-  type: z.string(),
-  salary: z.string(),
-  description: z.string().min(30, { message: 'Description must be at least 30 characters' }),
-  requirements: z.string().min(30, { message: 'Requirements must be at least 30 characters' }),
-  domains: z.array(z.string()).min(1, { message: 'Select at least one domain' }),
-  agreeToTerms: z.boolean().refine(val => val === true, {
-    message: 'You must agree to the terms',
-  }),
+// Define validation schema with the additional "applyLink" field
+const jobSchema = z.object({
+  title: z.string().min(3, "Job title must be at least 3 characters"),
+  company: z.string().min(2, "Company name is required"),
+  location: z.string().min(3, "Location is required"),
+  type: z.enum(["Full-time", "Internship"]),
+  salary: z.string().optional(),
+  role: z.string().min(5, "Job role description must be at least 5 characters"),
+  requirements: z.string().min(10, "Requirements must be at least 10 characters"),
+  eligibility: z.string().min(5, "Eligibility details must be at least 5 characters"),
+  applyLink: z.string().url("Please enter a valid URL"),
 });
 
-// Domain options
-const domainOptions = [
-  'Software & IT',
-  'Mechanical Engineering',
-  'Electrical & Electronics Engineering',
-  'Civil & Construction Engineering',
-  'Chemical & Process Engineering',
-  'Computer Science & Engineering',
-  'Biomedical Engineering',
-  'Aerospace Engineering',
-  'Industrial & Production Engineering',
-  'Environmental & Energy Engineering',
-  'Instrumentation & Control',
-  'Entrepreneurship & Innovation',
-];
-
-// Job types
-const jobTypes = ['Full-time', 'Part-time', 'Internship', 'Contract'];
+type JobFormValues = z.infer<typeof jobSchema>;
 
 const PostJob = () => {
-  const navigate = useNavigate();
+  const [jobType, setJobType] = useState("Full-time");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const navigate = useNavigate();
 
-  // Initialize form with zod schema
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<JobFormValues>({
+    resolver: zodResolver(jobSchema),
     defaultValues: {
-      title: '',
-      company: '',
-      location: '',
-      type: 'Full-time',
-      salary: '',
-      description: '',
-      requirements: '',
-      domains: [],
-      agreeToTerms: false,
+      title: "",
+      company: "",
+      location: "",
+      type: "Full-time",
+      salary: "",
+      role: "",
+      requirements: "",
+      eligibility: "",
+      applyLink: "",
     },
   });
 
-  // Form submission handler
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
+  // Handle form submission and add data to Firestore
+  const onSubmit = async (data: JobFormValues) => {
     setIsSubmitting(true);
-    
-    // Simulate API call with timeout
-    setTimeout(() => {
-      console.log('Job posting form submitted:', values);
-      
-      // Success message 
-      toast.success('Job posted successfully!', {
-        description: 'Your job has been posted and is now visible to students.',
+    try {
+      // Add job data to the "jobs" collection in Firestore
+      await addDoc(collection(db, "jobs"), {
+        ...data,
+        createdAt: new Date(),
       });
-      
-      // Reset form
+      toast.success("Job posted successfully!");
       form.reset();
+      navigate("/jobs"); // Redirect after successful post
+    } catch (error: any) {
+      console.error("Error posting job:", error);
+      toast.error("Failed to post job. Please try again.");
+    } finally {
       setIsSubmitting(false);
-      
-      // Redirect to jobs page
-      navigate('/jobs');
-    }, 1500);
+    }
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
-      <main className="flex-grow pt-24 pb-16">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="max-w-3xl mx-auto">
-            <Button 
-              variant="outline" 
-              className="mb-6" 
-              onClick={() => navigate('/jobs')}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Jobs
-            </Button>
-            
-            <div className="flex items-center gap-4 mb-8">
-              <div className="p-3 rounded-full bg-primary/10 text-primary">
-                <PenLine className="h-6 w-6" />
-              </div>
-              <div>
-                <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight">
-                  Post a Job
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                  Share opportunities with students and fellow alumni
-                </p>
-              </div>
-            </div>
-            
-            <div className="glass-card border-none rounded-xl p-6 md:p-8">
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  {/* Job Details Section */}
-                  <div className="space-y-4">
-                    <h2 className="font-semibold text-lg border-b pb-2">Job Details</h2>
-                    
-                    <FormField
-                      control={form.control}
-                      name="title"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Job Title</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Software Engineer" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="company"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Company</FormLabel>
-                            <FormControl>
-                              <Input placeholder="e.g. Google" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={form.control}
-                        name="location"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Location</FormLabel>
-                            <FormControl>
-                              <Input placeholder="e.g. San Francisco, CA" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="type"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Job Type</FormLabel>
-                            <Select 
-                              onValueChange={field.onChange} 
-                              defaultValue={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select job type" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {jobTypes.map((type) => (
-                                  <SelectItem key={type} value={type}>
-                                    {type}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={form.control}
-                        name="salary"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Salary Range</FormLabel>
-                            <FormControl>
-                              <Input placeholder="e.g. $80,000 - $100,000" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-                  
-                  {/* Description and Requirements */}
-                  <div className="space-y-4">
-                    <h2 className="font-semibold text-lg border-b pb-2">Description & Requirements</h2>
-                    
-                    <FormField
-                      control={form.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Job Description</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              placeholder="Describe the role, responsibilities, and what the candidate will be doing"
-                              className="min-h-[120px]"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="requirements"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Requirements</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              placeholder="List the skills, qualifications, and experience required for this position"
-                              className="min-h-[120px]"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  
-                  {/* Domains & Categories */}
-                  <div className="space-y-4">
-                    <h2 className="font-semibold text-lg border-b pb-2">Domains & Categories</h2>
-                    
-                    <FormField
-                      control={form.control}
-                      name="domains"
-                      render={() => (
-                        <FormItem>
-                          <div className="mb-4">
-                            <FormLabel>Related Domains</FormLabel>
-                            <p className="text-sm text-muted-foreground">
-                              Select domains related to this job opportunity
-                            </p>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {domainOptions.map((domain) => (
-                              <FormField
-                                key={domain}
-                                control={form.control}
-                                name="domains"
-                                render={({ field }) => {
-                                  return (
-                                    <FormItem
-                                      key={domain}
-                                      className="flex flex-row items-start space-x-3 space-y-0"
-                                    >
-                                      <FormControl>
-                                        <Checkbox
-                                          checked={field.value?.includes(domain)}
-                                          onCheckedChange={(checked) => {
-                                            return checked
-                                              ? field.onChange([...field.value, domain])
-                                              : field.onChange(
-                                                  field.value?.filter(
-                                                    (value) => value !== domain
-                                                  )
-                                                )
-                                          }}
-                                        />
-                                      </FormControl>
-                                      <FormLabel className="text-sm font-normal cursor-pointer">
-                                        {domain}
-                                      </FormLabel>
-                                    </FormItem>
-                                  )
-                                }}
-                              />
-                            ))}
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  
-                  {/* Terms */}
-                  <FormField
-                    control={form.control}
-                    name="agreeToTerms"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 mt-6">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                          <FormLabel className="text-sm font-normal">
-                            I confirm that this job posting complies with the terms of use and is a legitimate opportunity
-                          </FormLabel>
-                          <FormMessage />
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <div className="pt-4 border-t flex justify-end">
-                    <Button 
-                      type="submit" 
-                      disabled={isSubmitting}
-                      className="min-w-[120px]"
-                    >
-                      {isSubmitting ? (
-                        <div className="flex items-center gap-2">
-                          <div className="h-4 w-4 border-2 border-current border-r-transparent rounded-full animate-spin"></div>
-                          Posting...
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <Save className="h-4 w-4" />
-                          Post Job
-                        </div>
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </div>
-          </div>
-        </div>
-      </main>
-      <Footer />
+    <div className="max-w-lg mx-auto p-6 bg-white shadow-md rounded-lg">
+      <h2 className="text-2xl font-bold mb-4">Post a Job</h2>
+      
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {/* Job Title */}
+          <FormField control={form.control} name="title" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Job Title</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., Software Engineer" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+
+          {/* Company Name */}
+          <FormField control={form.control} name="company" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Company</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., Google" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+
+          {/* Location */}
+          <FormField control={form.control} name="location" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Location</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., New York, USA" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+
+          {/* Job Type */}
+          <FormField control={form.control} name="type" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Job Type</FormLabel>
+              <Select
+                onValueChange={(value) => {
+                  field.onChange(value);
+                  setJobType(value);
+                }}
+                defaultValue={field.value}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select job type" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Full-time">Full-time</SelectItem>
+                  <SelectItem value="Internship">Internship</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )} />
+
+          {/* Salary (Only for Full-time) */}
+          {jobType === "Full-time" && (
+            <FormField control={form.control} name="salary" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Salary (Optional)</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., $80,000 per year" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+          )}
+
+          {/* Job Role */}
+          <FormField control={form.control} name="role" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Job Role</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Describe the role and responsibilities..." {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+
+          {/* Requirements */}
+          <FormField control={form.control} name="requirements" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Requirements</FormLabel>
+              <FormControl>
+                <Textarea placeholder="List the required skills and qualifications..." {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+
+          {/* Eligibility */}
+          <FormField control={form.control} name="eligibility" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Eligibility</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Mention who is eligible for this role..." {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+
+          {/* Apply Link */}
+          <FormField control={form.control} name="applyLink" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Link to Apply</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g., https://company.com/apply" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+
+          {/* Submit Button */}
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? "Posting..." : "Post Job"}
+          </Button>
+        </form>
+      </Form>
     </div>
   );
 };

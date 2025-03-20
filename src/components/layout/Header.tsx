@@ -9,7 +9,13 @@ import Logo from '@/components/ui/Logo';
 import { auth } from '../../../firebase.js'; // Adjust the path to your firebase config file
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 
-const Header = () => {
+interface HeaderProps {
+  applyLink?: string;
+}
+
+const Header = ({ applyLink }: HeaderProps) => {
+  console.log("Header applyLink:", applyLink);
+  
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -91,6 +97,12 @@ const Header = () => {
         </nav>
 
         <div className="hidden md:flex items-center gap-4">
+          {/* Render the Apply button if applyLink is provided */}
+          {applyLink && (
+            <Button variant="outline" size="sm" onClick={() => window.open(applyLink, '_blank')}>
+              Apply
+            </Button>
+          )}
           {isLoggedIn ? (
             <>
               <Link to="/profile">
@@ -161,6 +173,11 @@ const Header = () => {
             
             <div className="border-t border-border pt-6 mt-auto">
               <div className="grid grid-cols-2 gap-3">
+                {applyLink && (
+                  <Button variant="outline" className="w-full" onClick={() => { window.open(applyLink, '_blank'); closeMobileMenu(); }}>
+                    Apply
+                  </Button>
+                )}
                 {isLoggedIn ? (
                   <>
                     <Link to="/profile" onClick={closeMobileMenu}>
