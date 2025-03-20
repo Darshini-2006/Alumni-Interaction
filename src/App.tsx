@@ -15,6 +15,7 @@ import PostJob from "./pages/PostJob";
 import Profile from "./pages/Profile";
 import WorkshopRegistration from "./pages/WorkshopRegistration";
 import Alumni from "./pages/Alumni";
+import Events from "./pages/Events";
 
 const queryClient = new QueryClient();
 
@@ -100,6 +101,7 @@ const App = () => {
               <Route path="/forums" element={<Forums />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/alumni" element={<Alumni />} />
+              <Route path="/events" element={<Events />} />
               <Route 
                 path="/post-job" 
                 element={
